@@ -643,8 +643,49 @@ class Struct(object):
         :param value: the value to set it to
         :raise: InvalidOperation
         """
-        tpl = 'cannot set %s key on %s indirectly. Use the set method.'
+        tpl = 'cannot set %s key on %s indirectly. Use the update method.'
         raise InvalidOperation(tpl % (key, self))
+
+    def __getattr__(self, item):
+        """
+        magic python method -- returns fields as an attribute of the object.
+        You can access data like so:
+
+        .. code-block:: python
+
+            user = User('1')
+            assert(user.name == 'bill')
+
+        :param item: str
+        :return: mixed
+        """
+        try:
+            return self._data[item]
+        except KeyError:
+            if item in self.fields:
+                return None
+            else:
+                raise AttributeError(
+                    "'%s' object has no attribute '%s'" % (
+                        self.__class__, item))
+
+    def __setattr__(self, key, value):
+        """
+        magic python method to control setting attributes on the object.
+
+        :param key:
+        :param value:
+        :return:
+        """
+        if key in self.fields:
+            tpl = 'cannot set %s.%s directly. Use the update method.'
+            raise InvalidOperation(tpl % (self, key))
+
+        if key in self.__slots__ or key in self.__dict__:
+            return super(Struct, self).__setattr__(key, value)
+
+        raise AttributeError("'%s' object has no attribute '%s'" %
+                             (self.__class__, key))
 
     def __iter__(self):
         """

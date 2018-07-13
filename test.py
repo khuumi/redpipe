@@ -377,6 +377,11 @@ class StructUser(redpipe.Struct):
         'last_name': redpipe.TextField,
     }
 
+    @property
+    def name(self):
+        names = [self.first_name, self.last_name]
+        return ' '.join([v for v in names if v is not None])
+
 
 class StructTestCase(BaseTestCase):
     User = StructUser
@@ -389,34 +394,44 @@ class StructTestCase(BaseTestCase):
         self.assertFalse(u.persisted)
         self.assertEqual(dict(u), {'_key': '1'})
         u = self.User({'_key': '1'})
+        self.assertEqual(u.first_name, None)
+        self.assertEqual(u.last_name, None)
         u.update({'first_name': 'Fred', 'last_name': 'Flintstone'})
         self.assertTrue(u.persisted)
         u = self.User('1')
         self.assertTrue(u.persisted)
         self.assertEqual(u['first_name'], 'Fred')
+        self.assertEqual(u.first_name, 'Fred')
+        self.assertEqual(u.last_name, 'Flintstone')
+        self.assertRaises(AttributeError, lambda: u.non_existent_field)
         self.assertIn('U', str(u))
         self.assertIn('1', str(u))
         self.assertEqual(u['last_name'], 'Flintstone')
+        self.assertEqual('Fred Flintstone', u.name)
+
         u.remove(['last_name', 'test_field'])
         self.assertRaises(KeyError, lambda: u['last_name'])
         self.assertRaises(AttributeError, lambda: u.non_existent_field)
         u.update({'first_name': 'Wilma', 'arbitrary_field': 'a'})
         self.assertEqual(u['first_name'], 'Wilma')
+        self.assertEqual(u.arbitrary_field, 'a')
         u = self.User('1')
         core = self.User.core()
         self.assertTrue(core.exists('1'))
         self.assertEqual(u['first_name'], 'Wilma')
         self.assertEqual('Wilma', u['first_name'])
 
-        def set_first_name():
+        with self.assertRaises(redpipe.InvalidOperation):
+            u.first_name = 'test'
+
+        with self.assertRaises(AttributeError):
+            u.non_existent_field = 1
+
+        with self.assertRaises(redpipe.InvalidOperation):
             u['first_name'] = 'a'
 
-        self.assertRaises(redpipe.InvalidOperation, set_first_name)
-
-        def delete_first_name():
+        with self.assertRaises(redpipe.InvalidOperation):
             del u['first_name']
-
-        self.assertRaises(redpipe.InvalidOperation, delete_first_name)
 
         u_copy = dict(u)
         u_clone = self.User(u, no_op=True)
@@ -805,8 +820,17 @@ class StructTestCase(BaseTestCase):
                 'b': redpipe.IntegerField
             }
 
-        t = Test({'_key': 'abc', 'b': 123})
-        t.required = set(['new_required_field'])
+        class Test2(redpipe.Struct):
+            required = {'new_required_field'}
+            keyspace = 'U'
+            fields = {
+                'a': redpipe.IntegerField,
+                'b': redpipe.IntegerField
+            }
+
+        Test({'_key': 'abc', 'b': 123})
+
+        t = Test2('abc')
         t.update({'b': 456, 'random_field': 'hello_world'})
         self.assertEqual(t['b'], 456)
         self.assertEqual(t['random_field'], 'hello_world')
